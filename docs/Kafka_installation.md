@@ -72,4 +72,4 @@ Plus besoin de lancer Zookeeper. On lance uniquement Kafka :
 
 ---
 
-Souhaitez-vous que je vous aide à configurer un **Connecteur Kafka** pour envoyer automatiquement des données vers votre **HDFS** ?
+
