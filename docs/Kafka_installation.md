@@ -51,11 +51,8 @@ Plus besoin de lancer Zookeeper. On lance uniquement Kafka :
 
 ### Création d'un Topic
 ```bash
-./bin/kafka-topics.sh --create --topic mon-topic --bootstrap-server localhost:9092
+./bin/kafka-topics.sh --create --topic Mastodon_stream --bootstrap-server localhost:9092
 ```
-
-### Test du flux de données
-L'option --zookeeper est désormais remplacée par --bootstrap-server.
 
 **Producer (Envoi) :**
 ```bash
@@ -75,4 +72,4 @@ L'option --zookeeper est désormais remplacée par --bootstrap-server.
 
 ---
 
-Souhaitez-vous que je vous aide à configurer un **Connecteur Kafka** pour envoyer automatiquement des données vers votre **HDFS** ?
+
