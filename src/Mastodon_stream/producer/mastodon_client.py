@@ -37,7 +37,7 @@ class MastodonClient:
             access_token=access_token,
             api_base_url=self.instance_url
         )
-        print(f"✅ Connecté à {self.instance_url}")
+        print(f" Connecté à {self.instance_url}")
     
     def get_client(self) -> Mastodon:
         """Retourne le client Mastodon configuré"""
