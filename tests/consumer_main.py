@@ -19,7 +19,7 @@ def main():
     Main function to run the Kafka consumer and write to HDFS.
     """
     # Configuration
-    KAFKA_TOPIC = 'mastodon-stream'
+    KAFKA_TOPIC = 'Mastodon_stream'
     KAFKA_SERVERS = 'localhost:9092'
     HDFS_PATH = 'hdfs://localhost:9000/kafka_demo/tweets_data.json'
     

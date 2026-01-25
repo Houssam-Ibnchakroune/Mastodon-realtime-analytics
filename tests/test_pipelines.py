@@ -17,7 +17,7 @@ def main():
     print("📨 Connexion à Kafka...")
     kafka_producer = KafkaProducer(
         bootstrap_servers='localhost:9092',
-        topic='mastodon-stream'
+        topic='Mastodon_stream'
     )
     print("✅ Kafka connecté\n")
     
