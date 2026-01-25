@@ -43,10 +43,6 @@ mastodon-realtime-analytics/
 │   │   └── flink-connector-elasticsearch-*.jar
 │   └── jobs/                            # Compiled jobs
 │
-├── hdfs/
-│   ├── namenode/                        # NameNode data
-│   └── datanode/                        # DataNode data
-│
 ├── elasticsearch/
 │   ├── mappings/
 │   │   ├── toots_index.json             # Mapping pour les toots
