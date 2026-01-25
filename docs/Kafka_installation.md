@@ -56,12 +56,12 @@ Plus besoin de lancer Zookeeper. On lance uniquement Kafka :
 
 **Producer (Envoi) :**
 ```bash
-./bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic mon-topic
+./bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic Mastodon_stream
 ```
 
 **Consumer (Réception) :**
 ```bash
-./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic mon-topic --from-beginning
+./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic Mastodon_stream --from-beginning
 ```
 
 ##  Résumé Technique
