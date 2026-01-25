@@ -13,6 +13,7 @@ dependencies = [
     "pydoop>=2.0.0",
     "kafka-python>=2.3.0",
     "rich>=14.2.0",
+    "apache-flink>=2.2.0",
 ]
 
 [build-system]
