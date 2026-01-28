@@ -1,9 +1,13 @@
 import os
+import time
+import logging
 from dotenv import load_dotenv
 from mastodon import Mastodon
 
 # Charger les variables d'environnement
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class MastodonClient:
@@ -43,15 +47,33 @@ class MastodonClient:
         """Retourne le client Mastodon configuré"""
         return self.client
     
-    def stream_public_timeline(self, handler):
+    def stream_public_timeline(self, handler, reconnect_async: bool = True, max_retries: int = 10):
         """
-        Lance le stream de la timeline publique
+        Lance le stream de la timeline publique avec auto-reconnexion
         
         Args:
             handler: Objet StreamHandler avec les méthodes de callback
+            reconnect_async: Activer la reconnexion automatique
+            max_retries: Nombre maximum de tentatives de reconnexion
         """
         if not self.client:
             raise RuntimeError("Client Mastodon non initialisé")
         
         print("🔄 Démarrage du stream Mastodon...")
-        self.client.stream_public(handler)
+        
+        retries = 0
+        while retries < max_retries:
+            try:
+                # reconnect_async=True permet au stream de se reconnecter automatiquement
+                self.client.stream_public(handler, reconnect_async=reconnect_async)
+                break  # Si le stream se termine normalement, on sort
+            except Exception as e:
+                retries += 1
+                logger.warning(f"⚠️ Stream interrompu ({retries}/{max_retries}): {e}")
+                if retries < max_retries:
+                    wait_time = min(30, 2 ** retries)  # Exponential backoff, max 30s
+                    logger.info(f"🔄 Reconnexion dans {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error("❌ Nombre maximum de tentatives atteint")
+                    raise

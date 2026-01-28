@@ -56,8 +56,24 @@ class StreamHandler(StreamListener):
         logger.info(f"Post supprimé: {status_id}")
     
     def on_abort(self, err):
-        """Appelé en cas d'erreur de connexion"""
-        logger.error(f"⚠️ Connexion interrompue: {err}")
+        """
+        Appelé en cas d'erreur de connexion.
+        Retourne False pour ignorer l'erreur et continuer le stream.
+        """
+        logger.warning(f"⚠️ Erreur stream (ignorée): {err}")
+        # Return False to NOT raise the exception and keep streaming
+        return False
+    
+    def on_unknown_event(self, name, unknown_event=None):
+        """
+        Appelé quand un événement inconnu est reçu.
+        Ignore silencieusement les événements malformés.
+        """
+        logger.debug(f"Événement inconnu ignoré: {name}")
+    
+    def handle_heartbeat(self):
+        """Appelé lors des heartbeats - garde la connexion vivante"""
+        pass
     
     def _extract_post_data(self, status: Dict[str, Any]) -> Dict[str, Any]:
         """
