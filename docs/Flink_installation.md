@@ -87,6 +87,66 @@ uv add apache-flink
 
 ---
 
+## 5. Utilisation de l'Analyseur Flink pour Mastodon
+
+### Structure du Module
+```
+src/Mastodon_stream/flink_analysis/
+├── __init__.py
+├── stream_analyzer.py    # DataStream API (programmatique)
+└── sql_analyzer.py       # Table/SQL API (requêtes SQL)
+```
+
+### Analyses Disponibles
+
+#### DataStream API (stream_analyzer.py)
+- **engagement** : Calcul du score d'engagement (favourites + reblogs*2 + replies)
+- **language** : Filtrage par langue (en, fr, etc.)
+- **hashtags** : Extraction et analyse des hashtags
+- **full** : Pipeline complet avec toutes les analyses
+
+#### Table/SQL API (sql_analyzer.py)
+- **language** : Distribution des langues par fenêtre temporelle
+- **users** : Utilisateurs les plus actifs
+- **engagement** : Métriques d'engagement agrégées
+- **dashboard** : Données en temps réel pour tableau de bord
+
+### Exécution
+
+#### Lancer une analyse DataStream
+```bash
+python run_flink_analysis.py --mode stream --analysis full
+```
+
+#### Lancer une analyse SQL avec fenêtres de 5 minutes
+```bash
+python run_flink_analysis.py --mode sql --analysis engagement --window 5
+```
+
+#### Filtrer par langues spécifiques
+```bash
+python run_flink_analysis.py --mode stream --analysis language --languages en fr de
+```
+
+### Topics Kafka de Sortie
+| Analyse | Topic de sortie |
+|---------|-----------------|
+| Engagement | `mastodon-engagement` |
+| Filtrage langue | `mastodon-filtered` |
+| Hashtags | `mastodon-hashtags` |
+| Dashboard | `mastodon-dashboard` |
+
+### Test du Module
+```bash
+# Test basique (sans Flink)
+python tests/test_flink_analyzer.py
+
+# Test complet avec import Flink
+python tests/test_flink_analyzer.py --full
+```
+
+---
+
 ## Résumé Technique
 
 | Composant | Valeur |
@@ -97,5 +157,6 @@ uv add apache-flink
 | **Java Système/Hadoop** | OpenJDK 8 (Inchangé) |
 | **Interface Web** | http://localhost:8081 |
 | **PyFlink** | apache-flink 2.2.0 |
+| **Kafka Connector** | flink-sql-connector-kafka-3.2.0-1.19.jar |
 
 ---
