@@ -33,8 +33,11 @@ logger = logging.getLogger(__name__)
 class PostParser(MapFunction):
     """Parse JSON string to extract post data"""
     
-    def map(self, value: str):
+    def map(self, value):
         try:
+            # Handle both bytes and string input
+            if isinstance(value, bytes):
+                value = value.decode('utf-8')
             data = json.loads(value)
             return json.dumps({
                 'id': data.get('id'),
@@ -47,7 +50,7 @@ class PostParser(MapFunction):
                 'tags': data.get('tags', []),
                 'created_at': data.get('created_at', ''),
             })
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, Exception):
             return None
 
 
@@ -57,8 +60,10 @@ class LanguageFilter(FilterFunction):
     def __init__(self, languages: list = None):
         self.languages = languages or ['en', 'fr']
     
-    def filter(self, value: str) -> bool:
+    def filter(self, value) -> bool:
         try:
+            if isinstance(value, bytes):
+                value = value.decode('utf-8')
             data = json.loads(value)
             lang = data.get('language', '')
             return lang in self.languages
@@ -69,8 +74,10 @@ class LanguageFilter(FilterFunction):
 class EngagementMapper(MapFunction):
     """Calculate engagement score for posts"""
     
-    def map(self, value: str):
+    def map(self, value):
         try:
+            if isinstance(value, bytes):
+                value = value.decode('utf-8')
             data = json.loads(value)
             # Engagement score = favorites + (reblogs * 2) + replies
             engagement = (
@@ -81,14 +88,16 @@ class EngagementMapper(MapFunction):
             data['engagement_score'] = engagement
             return json.dumps(data)
         except:
-            return value
+            return str(value) if value else None
 
 
 class HashtagExtractor(MapFunction):
     """Extract hashtags from posts"""
     
-    def map(self, value: str):
+    def map(self, value):
         try:
+            if isinstance(value, bytes):
+                value = value.decode('utf-8')
             data = json.loads(value)
             tags = data.get('tags', [])
             return json.dumps({
@@ -142,13 +151,13 @@ class MastodonStreamAnalyzer:
         
         # Add Kafka connector JAR
         jar_path = os.path.expanduser(
-            "~/Downloads/flink-2.2.0/lib/flink-sql-connector-kafka-3.2.0-1.19.jar"
+            "~/Downloads/flink-2.2.0/lib/flink-sql-connector-kafka-4.0.1-2.0.jar"
         )
         if os.path.exists(jar_path):
             self.env.add_jars(f"file://{jar_path}")
             logger.info(f"Added Kafka connector JAR: {jar_path}")
         else:
-            logger.warning(f"Kafka connector JAR not found at {jar_path}")
+            raise FileNotFoundError(f"Kafka connector JAR not found at {jar_path}")
     
     def _create_kafka_source(self) -> KafkaSource:
         """Create Kafka source connector"""
@@ -189,9 +198,9 @@ class MastodonStreamAnalyzer:
         stream = (
             self.env
             .from_source(source, WatermarkStrategy.no_watermarks(), "Kafka Source")
-            .map(PostParser())
+            .map(PostParser(), output_type=Types.STRING())
             .filter(lambda x: x is not None)
-            .map(EngagementMapper())
+            .map(EngagementMapper(), output_type=Types.STRING())
         )
         
         # Output to Kafka
@@ -215,7 +224,7 @@ class MastodonStreamAnalyzer:
         stream = (
             self.env
             .from_source(source, WatermarkStrategy.no_watermarks(), "Kafka Source")
-            .map(PostParser())
+            .map(PostParser(), output_type=Types.STRING())
             .filter(lambda x: x is not None)
             .filter(LanguageFilter(languages))
         )
@@ -236,7 +245,7 @@ class MastodonStreamAnalyzer:
         stream = (
             self.env
             .from_source(source, WatermarkStrategy.no_watermarks(), "Kafka Source")
-            .map(HashtagExtractor())
+            .map(HashtagExtractor(), output_type=Types.STRING())
             .filter(lambda x: x is not None)
         )
         
@@ -261,17 +270,17 @@ class MastodonStreamAnalyzer:
         parsed_stream = (
             self.env
             .from_source(source, WatermarkStrategy.no_watermarks(), "Kafka Source")
-            .map(PostParser())
+            .map(PostParser(), output_type=Types.STRING())
             .filter(lambda x: x is not None)
         )
         
         # Branch 1: Engagement analysis
-        engagement_stream = parsed_stream.map(EngagementMapper())
+        engagement_stream = parsed_stream.map(EngagementMapper(), output_type=Types.STRING())
         engagement_sink = self._create_kafka_sink("mastodon-engagement")
         engagement_stream.sink_to(engagement_sink)
         
         # Branch 2: Hashtag extraction
-        hashtag_stream = parsed_stream.map(HashtagExtractor())
+        hashtag_stream = parsed_stream.map(HashtagExtractor(), output_type=Types.STRING())
         hashtag_sink = self._create_kafka_sink("mastodon-hashtags")
         hashtag_stream.sink_to(hashtag_sink)
         

@@ -64,13 +64,15 @@ class MastodonSQLAnalyzer:
         
         # Add Kafka connector JAR
         jar_path = os.path.expanduser(
-            "~/Downloads/flink-2.2.0/lib/flink-sql-connector-kafka-3.2.0-1.19.jar"
+            "~/Downloads/flink-2.2.0/lib/flink-sql-connector-kafka-4.0.1-2.0.jar"
         )
         if os.path.exists(jar_path):
             self.t_env.get_config().set(
                 "pipeline.jars", f"file://{jar_path}"
             )
             logger.info(f"Added Kafka connector JAR: {jar_path}")
+        else:
+            raise FileNotFoundError(f"Kafka connector JAR not found at {jar_path}")
     
     def _create_source_table(self, table_name: str = "mastodon_posts"):
         """Create Kafka source table with DDL"""
@@ -91,14 +93,13 @@ class MastodonSQLAnalyzer:
                 `replies_count` BIGINT,
                 `url` STRING,
                 `tags` ARRAY<STRING>,
-                `event_time` AS TO_TIMESTAMP(created_at),
-                WATERMARK FOR `event_time` AS `event_time` - INTERVAL '5' SECOND
+                `proc_time` AS PROCTIME()
             ) WITH (
                 'connector' = 'kafka',
                 'topic' = '{self.input_topic}',
                 'properties.bootstrap.servers' = '{self.bootstrap_servers}',
                 'properties.group.id' = '{self.group_id}',
-                'scan.startup.mode' = 'earliest-offset',
+                'scan.startup.mode' = 'latest-offset',
                 'format' = 'json',
                 'json.fail-on-missing-field' = 'false',
                 'json.ignore-parse-errors' = 'true'
@@ -166,18 +167,21 @@ class MastodonSQLAnalyzer:
         query = f"""
             INSERT INTO language_stats
             SELECT 
-                TUMBLE_START(event_time, INTERVAL '{window_minutes}' MINUTE) AS window_start,
-                TUMBLE_END(event_time, INTERVAL '{window_minutes}' MINUTE) AS window_end,
+                TUMBLE_START(proc_time, INTERVAL '{window_minutes}' MINUTE) AS window_start,
+                TUMBLE_END(proc_time, INTERVAL '{window_minutes}' MINUTE) AS window_end,
                 COALESCE(language, 'unknown') AS language,
                 COUNT(*) AS post_count,
                 SUM(favourites_count + reblogs_count * 2) AS total_engagement
             FROM mastodon_posts
             GROUP BY 
-                TUMBLE(event_time, INTERVAL '{window_minutes}' MINUTE),
+                TUMBLE(proc_time, INTERVAL '{window_minutes}' MINUTE),
                 language
         """
         
-        self.t_env.execute_sql(query)
+        # Execute and wait for the streaming job to run
+        result = self.t_env.execute_sql(query)
+        print("Job started. Waiting for results... (Press Ctrl+C to stop)")
+        result.wait()
     
     def analyze_top_users(self, window_minutes: int = 10):
         """
@@ -204,20 +208,23 @@ class MastodonSQLAnalyzer:
         query = f"""
             INSERT INTO top_users
             SELECT 
-                TUMBLE_START(event_time, INTERVAL '{window_minutes}' MINUTE) AS window_start,
-                TUMBLE_END(event_time, INTERVAL '{window_minutes}' MINUTE) AS window_end,
+                TUMBLE_START(proc_time, INTERVAL '{window_minutes}' MINUTE) AS window_start,
+                TUMBLE_END(proc_time, INTERVAL '{window_minutes}' MINUTE) AS window_end,
                 account.username AS username,
                 COUNT(*) AS post_count,
                 AVG(account.followers_count) AS avg_followers
             FROM mastodon_posts
             WHERE account.username IS NOT NULL
             GROUP BY 
-                TUMBLE(event_time, INTERVAL '{window_minutes}' MINUTE),
+                TUMBLE(proc_time, INTERVAL '{window_minutes}' MINUTE),
                 account.username
             HAVING COUNT(*) > 1
         """
         
-        self.t_env.execute_sql(query)
+        # Execute and wait for the streaming job to run
+        result = self.t_env.execute_sql(query)
+        print("Job started. Waiting for results... (Press Ctrl+C to stop)")
+        result.wait()
     
     def analyze_engagement_metrics(self, window_minutes: int = 5):
         """
@@ -245,18 +252,21 @@ class MastodonSQLAnalyzer:
         query = f"""
             INSERT INTO engagement_metrics
             SELECT 
-                TUMBLE_START(event_time, INTERVAL '{window_minutes}' MINUTE) AS window_start,
-                TUMBLE_END(event_time, INTERVAL '{window_minutes}' MINUTE) AS window_end,
+                TUMBLE_START(proc_time, INTERVAL '{window_minutes}' MINUTE) AS window_start,
+                TUMBLE_END(proc_time, INTERVAL '{window_minutes}' MINUTE) AS window_end,
                 COUNT(*) AS total_posts,
                 AVG(CAST(favourites_count AS DOUBLE)) AS avg_favourites,
                 AVG(CAST(reblogs_count AS DOUBLE)) AS avg_reblogs,
                 MAX(favourites_count + reblogs_count * 2) AS max_engagement
             FROM mastodon_posts
             GROUP BY 
-                TUMBLE(event_time, INTERVAL '{window_minutes}' MINUTE)
+                TUMBLE(proc_time, INTERVAL '{window_minutes}' MINUTE)
         """
         
-        self.t_env.execute_sql(query)
+        # Execute and wait for the streaming job to run
+        result = self.t_env.execute_sql(query)
+        print("Job started. Waiting for results... (Press Ctrl+C to stop)")
+        result.wait()
     
     def real_time_dashboard_query(self):
         """
@@ -284,17 +294,58 @@ class MastodonSQLAnalyzer:
         query = """
             INSERT INTO dashboard_output
             SELECT 
-                TUMBLE_START(event_time, INTERVAL '1' MINUTE) AS window_start,
-                TUMBLE_END(event_time, INTERVAL '1' MINUTE) AS window_end,
+                TUMBLE_START(proc_time, INTERVAL '1' MINUTE) AS window_start,
+                TUMBLE_END(proc_time, INTERVAL '1' MINUTE) AS window_end,
                 'volume' AS metric_type,
                 'posts_per_minute' AS metric_name,
                 CAST(COUNT(*) AS DOUBLE) AS metric_value
             FROM mastodon_posts
             GROUP BY 
-                TUMBLE(event_time, INTERVAL '1' MINUTE)
+                TUMBLE(proc_time, INTERVAL '1' MINUTE)
         """
         
-        self.t_env.execute_sql(query)
+        # Execute and wait for the streaming job to run
+        result = self.t_env.execute_sql(query)
+        print("Job started. Waiting for results... (Press Ctrl+C to stop)")
+        result.wait()
+    
+    def simple_count_analysis(self):
+        """
+        Simple real-time count of posts - outputs to Kafka topic for consumption.
+        Good for testing that the pipeline works.
+        """
+        logger.info("Starting simple count analysis...")
+        
+        self._create_source_table()
+        
+        # Create Kafka sink for results
+        self._create_sink_table(
+            "post_counts",
+            "mastodon-counts",
+            """
+            `window_end` STRING,
+            `post_count` BIGINT
+            """
+        )
+        
+        # Count posts in 10-second windows
+        query = """
+            INSERT INTO post_counts
+            SELECT 
+                DATE_FORMAT(TUMBLE_END(proc_time, INTERVAL '10' SECOND), 'HH:mm:ss') as window_end,
+                COUNT(*) as post_count
+            FROM mastodon_posts
+            GROUP BY 
+                TUMBLE(proc_time, INTERVAL '10' SECOND)
+        """
+        
+        print("Starting count analysis (results sent to 'mastodon-counts' topic)...")
+        print("To see results, run in another terminal:")
+        print("  ~/Downloads/kafka_2.13-4.1.1/bin/kafka-console-consumer.sh --topic mastodon-counts --bootstrap-server localhost:9092")
+        print("")
+        result = self.t_env.execute_sql(query)
+        print("Job running... (Press Ctrl+C to stop)")
+        result.wait()
     
     def custom_sql_query(self, query: str):
         """

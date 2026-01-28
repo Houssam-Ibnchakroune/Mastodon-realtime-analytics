@@ -74,6 +74,8 @@ def run_sql_analysis(args):
         analyzer.analyze_engagement_metrics(args.window)
     elif args.analysis == 'dashboard':
         analyzer.real_time_dashboard_query()
+    elif args.analysis == 'count':
+        analyzer.simple_count_analysis()
     elif args.analysis == 'custom' and args.query:
         analyzer.custom_sql_query(args.query)
 
@@ -98,8 +100,8 @@ Examples:
     # Connection settings
     parser.add_argument('--bootstrap-servers', default='localhost:9092',
                         help='Kafka bootstrap servers (default: localhost:9092)')
-    parser.add_argument('--input-topic', default='mastodon-posts',
-                        help='Input Kafka topic (default: mastodon-posts)')
+    parser.add_argument('--input-topic', default='Mastodon_stream',
+                        help='Input Kafka topic (default: Mastodon_stream)')
     
     # Analysis mode
     parser.add_argument('--mode', choices=['stream', 'sql'], default='stream',
@@ -107,7 +109,7 @@ Examples:
     
     # Analysis type
     parser.add_argument('--analysis', 
-                        choices=['engagement', 'language', 'hashtags', 'full', 'users', 'dashboard', 'custom'],
+                        choices=['engagement', 'language', 'hashtags', 'full', 'users', 'dashboard', 'count', 'custom'],
                         default='engagement',
                         help='Type of analysis to run')
     
