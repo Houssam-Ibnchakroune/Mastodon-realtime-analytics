@@ -49,31 +49,41 @@ class MastodonClient:
     
     def stream_public_timeline(self, handler, reconnect_async: bool = True, max_retries: int = 10):
         """
-        Lance le stream de la timeline publique avec auto-reconnexion
+        Récupère les posts via polling sur le hashtag #news.
+        timeline_public retourne 0 posts (rate limiting ou restriction).
         
         Args:
             handler: Objet StreamHandler avec les méthodes de callback
-            reconnect_async: Activer la reconnexion automatique
-            max_retries: Nombre maximum de tentatives de reconnexion
+            reconnect_async: Non utilisé (compatibilité)
+            max_retries: Non utilisé (compatibilité)
         """
         if not self.client:
             raise RuntimeError("Client Mastodon non initialisé")
         
-        print("🔄 Démarrage du stream Mastodon...")
+        print("🔄 Démarrage du polling Mastodon (hashtag #news)...", flush=True)
+        print("📊 Récupération des nouveaux posts toutes les 3 secondes...", flush=True)
         
-        retries = 0
-        while retries < max_retries:
+        last_id = None
+        
+        while True:
             try:
-                # reconnect_async=True permet au stream de se reconnecter automatiquement
-                self.client.stream_public(handler, reconnect_async=reconnect_async)
-                break  # Si le stream se termine normalement, on sort
-            except Exception as e:
-                retries += 1
-                logger.warning(f"⚠️ Stream interrompu ({retries}/{max_retries}): {e}")
-                if retries < max_retries:
-                    wait_time = min(30, 2 ** retries)  # Exponential backoff, max 30s
-                    logger.info(f"🔄 Reconnexion dans {wait_time}s...")
-                    time.sleep(wait_time)
+                # Utiliser timeline_hashtag car timeline_public retourne 0 posts
+                if last_id:
+                    posts = self.client.timeline_hashtag('news', since_id=last_id, limit=40)
                 else:
-                    logger.error("❌ Nombre maximum de tentatives atteint")
-                    raise
+                    posts = self.client.timeline_hashtag('news', limit=20)
+                
+                # Traiter les posts (du plus ancien au plus récent)
+                for post in reversed(posts):
+                    handler.on_update(post)
+                    last_id = post['id']
+                
+                # Attendre avant la prochaine requête
+                time.sleep(3)
+                
+            except KeyboardInterrupt:
+                print(f"\n⏹️ Arrêt du polling | Total posts traités: {handler.messages_count}", flush=True)
+                break
+            except Exception as e:
+                print(f"⚠️ Erreur polling: {e}", flush=True)
+                time.sleep(5)
