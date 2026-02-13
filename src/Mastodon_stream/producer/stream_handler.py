@@ -42,18 +42,18 @@ class StreamHandler(StreamListener):
             self.kafka_producer.send_message(key=key, value=message)
             
             self.messages_count += 1
-            logger.info(f"✅ Post envoyé à Kafka | Total: {self.messages_count}")
+            print(f"✅ POST CRÉÉ | ID: {status['id']} | Auteur: @{status['account']['username']} | Total: {self.messages_count}", flush=True)
             
         except Exception as e:
-            logger.error(f"❌ Erreur lors du traitement du post: {e}")
+            print(f"❌ Erreur lors du traitement du post: {e}", flush=True)
     
     def on_notification(self, notification):
         """Appelé lors d'une notification (optionnel)"""
         logger.debug(f"Notification reçue: {notification['type']}")
     
     def on_delete(self, status_id):
-        """Appelé quand un post est supprimé (optionnel)"""
-        logger.info(f"Post supprimé: {status_id}")
+        """Appelé quand un post est supprimé"""
+        print(f"🗑️  POST SUPPRIMÉ | ID: {status_id}")
     
     def on_abort(self, err):
         """
